@@ -55,7 +55,7 @@ services:
       - PAYMENT_CALLBACK_URL=http://delivery.local/api/v1/orders/pay
       - READY_CALLBACK_URL=http://delivery.local/api/v1/orders/pickup
       - NOTIFICATION_AGENT_ID=87b77778-6a51-4ef7-a9cd-e2eec44aefaf
-      - POSTGRES_DSN=postgres://admin:admin@postgres:5432/notificationsdb?sslmode=disable
+      - POSTGRES_DSN=postgres://admin:admin@postgres:5432/ordersdb?sslmode=disable
     volumes:
       - ./migrations/orders/:/api/migrations/orders/
     ports:
@@ -75,14 +75,29 @@ services:
       - SERVICE_NAME=partners
       - SERVICE_ADDRESS=:4404
       - MIGRATION_DIR=file:///api/migrations/partners/
-      - POSTGRES_DSN=postgres://admin:admin@postgres:5432/notificationsdb?sslmode=disable
+      - POSTGRES_DSN=postgres://admin:admin@postgres:5432/partnersdb?sslmode=disable
     volumes:
       - ./migrations/partners/:/api/migrations/partners/
     ports:
       - 4404:4404
     networks:
       - delivery
+  
+  postgres:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+    ports:
+      - "5432:5432"  # Expose port 5432 to the host
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persist data
+    networks:
+      - delivery
 
 networks:
   delivery:
     external: true
+
+volumes:
+  postgres_data:
