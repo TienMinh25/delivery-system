@@ -31,9 +31,19 @@ func (a *auth) ChangePassword(ctx context.Context, change *pkg.ChangePasswordReq
 	panic("unimplemented")
 }
 
-// CheckToken implements pkg.Auth.
+// CheckToken implements pkg.Auth. (using for authorize)
 func (a *auth) CheckToken(ctx context.Context, accessToken string) (*pkg.User, error) {
-	panic("unimplemented")
+	result, err := a.client.RetrospectToken(ctx, accessToken, a.clientID, a.clientSecret, a.realm)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "a.client.RetrospectToken")
+	}
+
+	if !gocloak.PBool(result.Active) {
+		return nil, errors.New("token is invalid")
+	}
+
+	return a.getUser(ctx, accessToken)
 }
 
 // ConfirmChangeEmail implements pkg.Auth.
@@ -58,8 +68,19 @@ func (a *auth) ForgotPassword(ctx context.Context, userID string) error {
 }
 
 // RefreshToken implements pkg.Auth.
+// implement flow revoke access token
 func (a *auth) RefreshToken(ctx context.Context, userID string, refreshToken string) (*pkg.Token, error) {
-	panic("unimplemented")
+	token, err := a.client.RefreshToken(ctx, refreshToken, a.clientID, a.clientSecret, a.realm)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "a.client.RefreshToken")
+	}
+
+	return &pkg.Token{
+		AccessToken:  token.AccessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    token.ExpiresIn,
+	}, nil
 }
 
 // ResetPassword implements pkg.Auth.
