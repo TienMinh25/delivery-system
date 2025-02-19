@@ -17,7 +17,7 @@ Each service is containerized using **Docker** and orchestrated via **Docker Com
 ## Project Structure
 
 ```
-gocloud/
+delivery-system/
 │── cmd/                        # Main service binaries
 │   ├── api/                    # API Gateway, authentication & authorization service
 │   ├── notifications/          # Push Notifications service
@@ -29,6 +29,8 @@ gocloud/
 │── internal/                   # Core business logic (private)
 │── migrations/                 # Database migrations
 │── pkg/                        # Shared utility packages
+│── postgres_data               # Stored data postgres (mounted from docker)
+│── scripts                     # All scripts are related to database, etc...
 │── docker-compose.yml          # Docker Compose configuration
 │── .dockerignore               # Files and directories to exclude when building Docker images
 │── Makefile                    # Automation commands
