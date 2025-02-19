@@ -16,7 +16,7 @@ type Auth interface {
 	CheckToken(ctx context.Context, accessToken string) (*User, error)
 
 	// Generates a new access token using a refresh token for an authenticated user.
-	RefreshToken(ctx context.Context, userID string, refreshToken string) (*Token, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*Token, error)
 
 	// Updates user information (e.g., profile details) using an access token.
 	UpdateUser(ctx context.Context, accessToken string, user *UpdateUserRequest) error

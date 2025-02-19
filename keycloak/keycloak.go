@@ -117,7 +117,7 @@ func (a *auth) ForgotPassword(ctx context.Context, userID string) error {
 
 // RefreshToken implements pkg.Auth.
 // implement flow revoke access token
-func (a *auth) RefreshToken(ctx context.Context, userID string, refreshToken string) (*pkg.Token, error) {
+func (a *auth) RefreshToken(ctx context.Context, refreshToken string) (*pkg.Token, error) {
 	token, err := a.client.RefreshToken(ctx, refreshToken, a.clientID, a.clientSecret, a.realm)
 
 	if err != nil {
@@ -187,15 +187,15 @@ func (a *auth) SignUp(ctx context.Context, payload *pkg.SignUpRequest) (string, 
 
 	// kha nang cao error
 	if payload.Phone != "" {
-		attributes["phoneNumber"] = []string{payload.Phone}
+		attributes["phone_number"] = []string{payload.Phone}
 	}
 
 	if payload.BirthDate != "" {
-		attributes["birthDate"] = []string{payload.BirthDate}
+		attributes["birth_date"] = []string{payload.BirthDate}
 	}
 
 	if payload.NotifToken != "" {
-		attributes["notifToken"] = []string{payload.NotifToken}
+		attributes["notif_token"] = []string{payload.NotifToken}
 	}
 
 	user.Attributes = &attributes
@@ -277,15 +277,15 @@ func (a *auth) UpdateUser(ctx context.Context, accessToken string, payload *pkg.
 	}
 
 	if payload.Phone != nil {
-		(*user.Attributes)["phoneNumber"] = []string{gocloak.PString(payload.Phone)}
+		(*user.Attributes)["phone_number"] = []string{gocloak.PString(payload.Phone)}
 	}
 
 	if payload.BirthDate != nil {
-		(*user.Attributes)["birthDate"] = []string{gocloak.PString(payload.BirthDate)}
+		(*user.Attributes)["birth_date"] = []string{gocloak.PString(payload.BirthDate)}
 	}
 
 	if payload.NotifToken != nil {
-		(*user.Attributes)["notifToken"] = []string{gocloak.PString(payload.NotifToken)}
+		(*user.Attributes)["notif_token"] = []string{gocloak.PString(payload.NotifToken)}
 	}
 
 	// update the user
@@ -344,7 +344,7 @@ func (a *auth) getUser(ctx context.Context, accessToken string) (*pkg.User, erro
 		Email:      parseAny[string](info["email"]),
 		Phone:      parseAny[string](info["phone_number"]),
 		PhotoURL:   parseAny[string](info["picture"]),
-		BirthDate:  parseAny[string](info["birthdate"]),
+		BirthDate:  parseAny[string](info["birth_date"]),
 		Roles:      roles,
 		NotifToken: parseAny[string](info["notif_token"]),
 	}, nil
