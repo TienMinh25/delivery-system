@@ -52,7 +52,7 @@ export commands: |
   # place in root project
   # pwd -> <parent_path>/delivery-system
   mkdir keycloak/import
-  docker cp keycloak:/tmp/generated_keycloak_setup.json keycloak/import/
+  docker cp keycloak:/tmp/generated_keycloak_setup.json third_party/keycloak/import/
   in generated_keycloak_setup.json: remove
     - realm.master
     - authorizationSettings

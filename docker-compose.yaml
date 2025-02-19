@@ -129,9 +129,27 @@ services:
     networks:
       - delivery
 
+  minio:
+    image: minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=adminadmin
+      - MINIO_REGION_NAME=us-east-1  # add region
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    ports:
+      - 9000:9000 # S3 api
+      - 9001:9001 # web UI
+    networks:
+      - delivery
+
+
 networks:
   delivery:
     external: true
 
 volumes:
   postgres_data:
+  minio_data:

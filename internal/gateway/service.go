@@ -1,12 +1,21 @@
 package gateway
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/jpeg"
+	"image/png"
+	"io"
 
 	"github.com/TienMinh25/delivery-system/internal/products"
 	"github.com/TienMinh25/delivery-system/pkg"
+	"github.com/disintegration/imaging"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/pkg/errors"
 )
+
+const _MAX_AVATAR_BYTES = 5 << 20
 
 type Service interface {
 	// service handles for user management
@@ -35,6 +44,7 @@ type Service interface {
 
 type service struct {
 	authManager pkg.Auth
+	storage     pkg.Storage
 }
 
 func NewService(
@@ -200,7 +210,90 @@ func (s *service) signUp(ctx context.Context, payload *signUpRequest) (*signUpRe
 
 // updateAvatar implements Service.
 func (s *service) updateAvatar(ctx context.Context, user *user, file pkg.File, fileInfo pkg.FileInfo) error {
-	panic("unimplemented")
+	// save old photo url which is used for rollback
+	oldPhotoURL := user.PhotoURL
+
+	// decode image to get information ()
+	img, format, err := image.Decode(io.LimitReader(file, _MAX_AVATAR_BYTES))
+
+	if err != nil {
+		return errors.Wrap(err, "image.Decode")
+	}
+
+	// create new file with size 400x400, algo catmullrom to make image beautiful
+	img = imaging.Fill(img, 400, 400, imaging.Center, imaging.CatmullRom)
+
+	// using go nanoid to generate new name for file (for avatar)
+	fileName, err := gonanoid.New(21)
+
+	if err != nil {
+		return errors.Wrap(err, "gonanoid.New")
+	}
+
+	buffer := new(bytes.Buffer)
+
+	switch format {
+	case "png":
+		fileName += ".png"
+		err = png.Encode(buffer, img)
+	case "jpeg":
+		fileName += ".jpeg"
+		err = jpeg.Encode(buffer, img, nil)
+	default:
+		return errors.New("UnsupportedAvatarFormat: " + format)
+	}
+
+	// check error after encode
+	if err != nil {
+		return errors.Wrap(err, "format.Encode")
+	}
+
+	// get byte[] (byte of image)
+	data := buffer.Bytes()
+
+	// Upload image to S3 storage
+	photoURL, err := s.storage.Upload(ctx, pkg.UploadInput{
+		File:        bytes.NewReader(data),
+		Name:        fileName,
+		Size:        int64(len(data)),
+		ContentType: fileInfo.ContentType(),
+	})
+
+	// handle err when upload to s3 fail
+	if err != nil {
+		return errors.Wrap(err, "s.storage.Upload")
+	}
+
+	// update avatar user
+	err = s.authManager.UpdateUser(ctx, user.AccessToken, &pkg.UpdateUserRequest{
+		ID:       user.ID,
+		PhotoURL: &photoURL,
+	})
+
+	if err != nil {
+		err = errors.Wrap(err, "s.authManager.UpdateUser")
+
+		// if update user fail -> remove object from s3
+		err2 := s.storage.Delete(ctx, photoURL)
+
+		if err2 != nil {
+			err2 = errors.Wrap(err2, "s.storage.Delete")
+			err = errors.Wrap(err, err2.Error())
+		}
+
+		return err
+	}
+
+	// delete old photo (old object on s3)
+	if oldPhotoURL != "" {
+		err = s.storage.Delete(ctx, oldPhotoURL)
+
+		if err != nil {
+			return errors.Wrap(err, "s.storage.Delete")
+		}
+	}
+
+	return nil
 }
 
 // updateUser implements Service.
