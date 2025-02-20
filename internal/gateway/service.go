@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const _MAX_AVATAR_BYTES = 5 << 20
+const _MAX_AVATAR_BYTES = 5 << 20 // 5MB
 
 type Service interface {
 	// service handles for user management
@@ -62,7 +62,19 @@ func (s *service) assignOrder(ctx context.Context, user *user, payload *assignRe
 
 // changePassword implements Service.
 func (s *service) changePassword(ctx context.Context, user *user, payload *changePasswordRequest) error {
-	panic("unimplemented")
+	err := s.authManager.ChangePassword(ctx, &pkg.ChangePasswordRequest{
+		UserID:      user.ID,
+		AccessToken: user.AccessToken,
+		Email:       user.Email,
+		OldPassword: payload.OldPassword,
+		NewPassword: payload.NewPassword,
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "s.authManager.ChangePassword")
+	}
+
+	return nil
 }
 
 // checkOrder implements Service.
@@ -115,13 +127,25 @@ func (s *service) confirmSignUp(ctx context.Context, payload *confirmSignUpReque
 }
 
 // deleteUser implements Service.
-func (s *service) deleteUser(context.Context, string) error {
-	panic("unimplemented")
+func (s *service) deleteUser(ctx context.Context, userID string) error {
+	err := s.authManager.DeleteUser(ctx, userID)
+
+	if err != nil {
+		return errors.Wrap(err, "s.authManager.DeleteUser")
+	}
+
+	return nil
 }
 
 // forgotPassword implements Service.
 func (s *service) forgotPassword(ctx context.Context, userID string) error {
-	panic("unimplemented")
+	err := s.authManager.ForgotPassword(ctx, userID)
+
+	if err != nil {
+		return errors.Wrap(err, "s.authManager.ForgotPassword")
+	}
+
+	return nil
 }
 
 // getPartnerProducts implements Service.
@@ -156,7 +180,17 @@ func (s *service) refreshToken(ctx context.Context, payload *refreshTokenRequest
 
 // resetPassword implements Service.
 func (s *service) resetPassword(ctx context.Context, payload *resetPasswordRequest) error {
-	panic("unimplemented")
+	err := s.authManager.ResetPassword(ctx, &pkg.ResetPasswordRequest{
+		UserID:   payload.UserID,
+		Code:     payload.Code,
+		Password: payload.Password,
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "s.authManager.ResetPassword")
+	}
+
+	return nil
 }
 
 // signIn implements Service.

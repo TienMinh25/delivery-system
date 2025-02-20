@@ -112,7 +112,7 @@ services:
     depends_on:
       - postgres
     volumes:
-      - ./keycloak/import:/opt/keycloak/data/import
+      - ./third_party/keycloak/import:/opt/keycloak/data/import
     ports:
       - 8443:8443
       - 8080:8080
