@@ -29,7 +29,9 @@ delivery-system/
 │── internal/                   # Core business logic (private)
 │── migrations/                 # Database migrations
 │── pkg/                        # Shared utility packages
-│── postgres_data               # Stored data postgres (mounted from docker)
+│── postgres_data               # Folder contains data postgres (mounted from docker)
+│── minio_data                  # Folder contains data S3 (mounted from docker)
+│── thirty_party                # Thirty party used in project (implement interface in package pkg, e.g. minio, keycloak,...)
 │── scripts                     # All scripts are related to database, etc...
 │── docker-compose.yml          # Docker Compose configuration
 │── .dockerignore               # Files and directories to exclude when building Docker images
@@ -56,3 +58,6 @@ delivery-system/
 - **Custom HTTP Router**: Optimized request processing.
 
 ---
+
+This project was inspired by open-source resources. Thanks to the projects for helping shape the idea and source code to reference and development:
+- Github Repository: https://github.com/shahzodshafizod/gocloud
