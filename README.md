@@ -29,10 +29,10 @@ delivery-system/
 │── internal/                   # Core business logic (private)
 │── migrations/                 # Database migrations
 │── pkg/                        # Shared utility packages
-│── postgres_data               # Folder contains data postgres (mounted from docker)
-│── minio_data                  # Folder contains data S3 (mounted from docker)
-│── thirty_party                # Thirty party used in project (implement interface in package pkg, e.g. minio, keycloak,...)
-│── scripts                     # All scripts are related to database, etc...
+│── postgres_data/              # Folder contains data postgres (mounted from docker)
+│── minio_data/                 # Folder contains data S3 (mounted from docker)
+│── thirty_party/               # Thirty party used in project (implement interface in package pkg, e.g. minio, keycloak,...)
+│── scripts/                    # All scripts are related to database, etc...
 │── docker-compose.yml          # Docker Compose configuration
 │── .dockerignore               # Files and directories to exclude when building Docker images
 │── Makefile                    # Automation commands
