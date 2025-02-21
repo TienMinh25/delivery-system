@@ -58,6 +58,14 @@ delivery-system/
 - **Custom HTTP Router**: Optimized request processing.
 
 ---
+## Tech stack:
+- **Language programming**: Golang
+- **Storage**: Postgres, Redis, S3 (minio instead)
+- **Interconnection**: gRPC, HTTP, websocket
+- **Authention system**: Keycloak
+- **Message broker**: Kafka
+- **Distributed tracing**: Jeager (handle metric and provide UI), Opentelemetry (collect all information like metric, service name, etc.. and export data to Jeager) 
+---
 
 This project was inspired by open-source resources. Thanks to the projects for helping shape the idea and source code to reference and development:
 - Github Repository: https://github.com/shahzodshafizod/gocloud
