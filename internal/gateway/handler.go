@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"os"
+
 	"github.com/TienMinh25/delivery-system/pkg"
 	"go.uber.org/fx"
 )
@@ -18,5 +20,8 @@ func NewHandler(
 	tracer pkg.DistributedTracer,
 	messageQueue pkg.Queue,
 ) {
-
+	handler := &handler{
+		gatewayService: gatewayService,
+		apiSecretKey:   os.Getenv("API_SECRET_KEY"),
+	}
 }

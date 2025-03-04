@@ -12,6 +12,7 @@ import (
 	kafkaconfluent "github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
+// TODO: handle later
 type queue struct {
 	topic          string                   // topic
 	groupID        string                   // group consumer id

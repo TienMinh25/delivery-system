@@ -227,7 +227,7 @@ Communication methods are color-coded in design diagrams:
    - **Violet**: Third-Party Integrations  
    - **Cyan**: Internal Calls  
 
-![Design](./design-system/design-0-delivery.svg)
+![Design](../design-system/design-0-delivery.svg)
 
 ---
 
@@ -242,7 +242,7 @@ Communication methods are color-coded in design diagrams:
    5. The customer logs into the system using their email and password and receives access and refresh tokens. (**2**->**3**->**4**)  
    6. **Front App** saves the tokens and uses them in subsequent requests.  
 
-![1](./design-system/design-1-sing-up.svg)
+![1](../design-system/design-1-sing-up.svg)
 
 ### 2. Customer Lists Available Products  
 
@@ -252,7 +252,7 @@ Communication methods are color-coded in design diagrams:
    4. **Partners API** accepts and transfers the request to its service.  
    5. **Partners Service** retrieves data from its database and returns it.  
 
-![2](./design-system/design-2-list-products.svg)
+![2](../design-system/design-2-list-products.svg)
 
 ### 3. Customer Leaves an Order: Check  
 
@@ -264,7 +264,7 @@ Communication methods are color-coded in design diagrams:
    6. **Partners Service** checks product and partner availability in its database.  
    7. If everything is valid, the **Gateway Service** saves the checked request in the cache for 10 minutes.  
 
-![3](./design-system/design-3-check-order.svg)
+![3](../design-system/design-3-check-order.svg)
 
 ### 4. Customer Leaves an Order: Confirm 
 
@@ -276,7 +276,7 @@ Communication methods are color-coded in design diagrams:
    6. **Orders Service** checks its database to confirm if the chosen payment system is registered and retrieves its web checkout information.  
    7. **Orders Service** saves the order in its database and returns payment and callback information.  
 
-![4](./design-system/design-4-confirm-order.svg)
+![4](../design-system/design-4-confirm-order.svg)
 
 ### 5. Customer Pays for the Order  
 
@@ -291,7 +291,7 @@ Communication methods are color-coded in design diagrams:
    9. **Partners Service** retrieves the **Partner System URL** from its database.  
    10. **Partners Service** sends a request to the **Partner System** with the products to be prepared and readiness callback information.  
 
-![5](./design-system/design-5-pay-order.svg)
+![5](../design-system/design-5-pay-order.svg)
 
 ### 6. Order is Ready  
 
@@ -301,7 +301,7 @@ Communication methods are color-coded in design diagrams:
    4. **Orders API** accepts the request and transfers it to its service.  
    5. **Orders Service** updates the order status to "ready."  
 
-![6](./design-system/design-6-pickup-order.svg)
+![6](../design-system/design-6-pickup-order.svg)
 
 ### 7. Deliverer Chooses the Order  
 
@@ -317,7 +317,7 @@ Communication methods are color-coded in design diagrams:
    10. **Notifications Service** sends a push notification to the customer via a third-party push notification provider.  
    11. The **third-party push notification provider** locates the customer's device using the provided token and sends the push message.  
 
-![7](./design-system/design-7-assign-order.svg)
+![7](../design-system/design-7-assign-order.svg)
 
 ---
 
