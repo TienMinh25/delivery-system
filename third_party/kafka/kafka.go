@@ -3,197 +3,364 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
+	"github.com/TienMinh25/delivery-system/internal/env"
+	"github.com/TienMinh25/delivery-system/pkg"
+	"github.com/TienMinh25/delivery-system/pkg/worker"
+	kafkaconfluent "github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/google/uuid"
 	"sync"
 	"time"
-
-	"github.com/TienMinh25/delivery-system/pkg"
-	kafkaconfluent "github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
-// TODO: handle later
 type queue struct {
-	topic          string                   // topic
-	groupID        string                   // group consumer id
-	producer       *kafkaconfluent.Producer // producer
-	consumer       *kafkaconfluent.Consumer // consumer
-	subcribers     []*pkg.SubscriptionInfo  // information of subcriber
-	ctx            context.Context
-	cancel         context.CancelFunc    // Dùng để cancel tất cả goroutine cũ khi consumer reconnect
-	reconnectCh    chan bool             // signal for reconnecting consumer
-	tracer         pkg.DistributedTracer // distributed trace log
-	reconnectDelay time.Duration         // reconnect delay time
-	mu             sync.RWMutex          // concurrent lock when subcribe
+	serviceName string                             // used for distributed tracing
+	groupID     string                             // group consumer id
+	producer    *kafkaconfluent.Producer           // producer
+	consumer    *kafkaconfluent.Consumer           // consumer
+	subscribers map[string][]*pkg.SubscriptionInfo // information of subscribers
+	mu          sync.RWMutex                       // concurrent lock when subscribe
+	workerPool  *worker.Pool                       // worker pool to process message
+	tracer      pkg.DistributedTracer              // tracer
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
 
-func NewQueue(serviceName string, tracer pkg.DistributedTracer) (pkg.Queue, error) {
-	retryDelayMs, err := strconv.Atoi(os.Getenv("KAFKA_RETRY_DELAY"))
-	brokersString := os.Getenv("KAFKA_BROKERS")
-	groupID := os.Getenv("KAFKA_GROUP_ID")
-
-	if err != nil {
-		// fallback value
-		retryDelayMs = 2000
-	}
-
+func NewQueue(serviceName string, tracer pkg.DistributedTracer, config *env.EnvManager) (pkg.Queue, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	q := &queue{
-		topic:          os.Getenv("KAFKA_TOPIC"),
-		groupID:        groupID,
-		ctx:            ctx,
-		cancel:         cancel,
-		reconnectCh:    make(chan bool),
-		producer:       newKafkaProducer(brokersString),
-		consumer:       newKafkaConsumer(brokersString, groupID),
-		subcribers:     make([]*pkg.SubscriptionInfo, 0),
-		reconnectDelay: time.Duration(retryDelayMs) * time.Millisecond,
-		tracer:         tracer,
+		groupID:     config.Kafka.KafkaGroupID,
+		ctx:         ctx,
+		cancel:      cancel,
+		subscribers: make(map[string][]*pkg.SubscriptionInfo, 0),
+		tracer:      tracer,
 	}
 
-	// handle for case consumer died or disconnect
-	go q.reconnectConsumer(brokersString, groupID)
+	producer, err := newKafkaProducer(config.Kafka.KafkaBrokers, config.Kafka.KafkaRetryAttempts, config.Kafka.KafkaProducerMaxWait)
+
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create producer: %w", err)
+	}
+	q.producer = producer
+
+	q.consumer, err = newKafkaConsumer(config.Kafka.KafkaBrokers, fmt.Sprintf("%s-%s", config.Kafka.KafkaGroupID, serviceName), config.Kafka.KafkaConsumerFetchMinBytes, config.Kafka.KafkaConsumerFetchMaxBytes, config.Kafka.KafkaConsumerMaxWait)
+	if err != nil {
+		q.producer.Close()
+		cancel()
+		return nil, fmt.Errorf("failed to create consumer: %w", err)
+	}
+
+	q.workerPool = worker.NewPool(config.ServiceWorkerPool.CapacityWorkerPool, config.ServiceWorkerPool.MessageSize, q.processMessage)
+
+	// Start the message consumer loop
+	// consume all message from all topic which is subscribed
+	q.wg.Add(1)
+	go q.consumeMessages()
 
 	return q, nil
 }
 
-func newKafkaProducer(brokers string) *kafkaconfluent.Producer {
-	retries, err := strconv.Atoi(os.Getenv("KAFKA_RETRY_ATTEMPTS"))
-
-	if err != nil {
-		// fallback value
-		retries = 5
-	}
-
-	producerMaxWait, err := strconv.Atoi(os.Getenv("KAFKA_PRODUCER_MAX_WAIT"))
-
-	if err != nil {
-		// fallback value
-		producerMaxWait = 300
-	}
-
+func newKafkaProducer(brokers string, retries, producerMaxWait int) (*kafkaconfluent.Producer, error) {
 	p, err := kafkaconfluent.NewProducer(&kafkaconfluent.ConfigMap{
 		"bootstrap.servers":                     brokers,
-		"client.id":                             "myProducer",
+		"client.id":                             uuid.New().String(),
 		"acks":                                  "all",
 		"enable.idempotence":                    true,
 		"max.in.flight.requests.per.connection": 5,
 		"retries":                               retries,
 		"linger.ms":                             producerMaxWait,
+		"transactional.id":                      uuid.New().String(),
 	})
 
 	if err != nil {
-		fmt.Printf("Failed to create producer: %s\n", err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	return p
+	if err = p.InitTransactions(context.Background()); err != nil {
+		p.Close()
+		return nil, fmt.Errorf("failed to initialize transactions: %w", err)
+	}
+
+	go func() {
+		for e := range p.Events() {
+			switch ev := e.(type) {
+			case *kafkaconfluent.Message:
+				if ev.TopicPartition.Error != nil {
+					fmt.Printf("Failed to deliver message: %v\n", ev.TopicPartition)
+				} else {
+					fmt.Printf("Successfully produced record to topic %s partition [%d] @ offset %v\n",
+						*ev.TopicPartition.Topic, ev.TopicPartition.Partition, ev.TopicPartition.Offset)
+				}
+			}
+		}
+	}()
+
+	return p, nil
 }
 
-func newKafkaConsumer(brokers, groupID string) *kafkaconfluent.Consumer {
-	fetchMinBytes, err := strconv.Atoi(os.Getenv("KAFKA_CONSUMER_FETCH_MIN_BYTES"))
-
-	if err != nil {
-		// fallback value
-		fetchMinBytes = 5
-	}
-
-	fetchMaxBytes, err := strconv.Atoi(os.Getenv("KAFKA_CONSUMER_FETCH_MAX_BYTES"))
-
-	if err != nil {
-		// fallback value
-		fetchMaxBytes = 1e6
-	}
-
-	timeMaxWait, err := strconv.Atoi(os.Getenv("KAFKA_CONSUMER_MAX_WAIT"))
-
-	if err != nil {
-		// fallback value
-		timeMaxWait = 1000
-	}
-
+func newKafkaConsumer(brokers, groupID string, fetchMinBytes, fetchMaxBytes, timeMaxWait int) (*kafkaconfluent.Consumer, error) {
 	c, err := kafkaconfluent.NewConsumer(&kafkaconfluent.ConfigMap{
 		"bootstrap.servers":  brokers,
-		"client.id":          "my-consumer",
+		"client.id":          uuid.New().String(),
 		"group.id":           groupID,
 		"enable.auto.commit": false,
 		"auto.offset.reset":  "earliest",
-		"fetch.min.bytes":    fetchMinBytes,
-		"fetch.max.bytes":    fetchMaxBytes,
-		"fetch.max.wait.ms":  timeMaxWait,
+		// Consumer Tuning
+		"max.poll.interval.ms":  60000, // 1p (kafka will kick consumer)
+		"heartbeat.interval.ms": 5000,  // 5s
+		"session.timeout.ms":    45000,
+		"fetch.min.bytes":       fetchMinBytes,
+		"fetch.max.bytes":       fetchMaxBytes,
+		"fetch.wait.max.ms":     timeMaxWait,
+		"isolation.level":       "read_committed",
 	})
 
 	if err != nil {
-		fmt.Printf("Failed to create consumer: %s\n", err)
-		os.Exit(1)
+		return nil, err
 	}
 
-	return c
+	return c, nil
 }
 
 // Close implements pkg.Queue.
 func (q *queue) Close() error {
-	q.cancel() // Hủy tất cả goroutine (kể cả đang consume hay reconnect)
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	q.consumer.Close()
+	q.cancel() // Hủy tất cả goroutine (kể cả đang consume hay reconnect)
+	q.workerPool.GracefulShutdown()
+
+	// Wait for all goroutines to finish
+	q.wg.Wait()
+
+	// Close Kafka connections
+	if err := q.consumer.Close(); err != nil {
+		return err
+	}
 	q.producer.Close()
 	return nil
 }
 
 // Publish implements pkg.Queue.
-func (q *queue) Publish(ctx context.Context, topic string, request []byte) error {
-	panic("unimplemented")
-}
+func (q *queue) Produce(ctx context.Context, topic string, payload []byte) error {
+	// Start a span for tracing if tracer is provided
+	var span pkg.Span
 
-// Subscribe implements pkg.Queue.
-func (q *queue) Subscribe(ctx context.Context, payload *pkg.SubscriptionInfo) error {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	q.subcribers = append(q.subcribers, payload)
-	go q.consume(payload)
+	if q.tracer != nil {
+		ctx, span = q.tracer.StartFromContext(ctx, "kafka-produce")
+		defer span.End()
+	}
+
+	// begin transaction
+	err := q.producer.BeginTransaction()
+
+	if err != nil {
+		fmt.Printf("Failed to begin transaction: %s\n", err)
+		return err
+	}
+
+	// Prepare message
+	message := &kafkaconfluent.Message{
+		TopicPartition: kafkaconfluent.TopicPartition{
+			Topic:     &topic,
+			Partition: kafkaconfluent.PartitionAny,
+		},
+		Value: payload,
+	}
+
+	// Inject tracing headers if span is available
+	if span != nil {
+		q.tracer.Inject(ctx, &KafkaHeadersCarrier{
+			headers: message.Headers,
+		})
+	}
+
+	if err = q.producer.Produce(message, nil); err != nil {
+		fmt.Printf("Failed to produce message: %s\n", err)
+		_ = q.producer.AbortTransaction(context.Background())
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		_ = q.producer.AbortTransaction(ctx)
+		return ctx.Err()
+	}
+
+	// Commit transaction
+	if err := q.producer.CommitTransaction(ctx); err != nil {
+		_ = q.producer.AbortTransaction(ctx)
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 
-func (q *queue) reconnectConsumer(brokers, groupID string) {
+// Subscribe implements pkg.Queue.
+// chi subscribe topic cho consumer -> chi ra rang group consumer do se poll luon message tu topic do tren kafka ve
+func (q *queue) Subscribe(ctx context.Context, payload *pkg.SubscriptionInfo) error {
+	if payload == nil || payload.Topic == "" || payload.Callback == nil {
+		return fmt.Errorf("invalid subscription info")
+	}
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	// Store subscription info
+	q.subscribers[payload.Topic] = append(q.subscribers[payload.Topic], payload)
+
+	topics := make([]string, 0, len(q.subscribers))
+
+	for topic := range q.subscribers {
+		topics = append(topics, topic)
+	}
+
+	return q.consumer.SubscribeTopics(topics, nil)
+}
+
+// consumeMessages is the main consumer loop
+func (q *queue) consumeMessages() {
+	defer q.wg.Done()
+
 	for {
 		select {
 		case <-q.ctx.Done():
+			// Context was cancelled, exit the loop
 			return
-		case <-q.reconnectCh:
-			q.mu.Lock()
-			q.consumer.Close()
-			q.consumer = newKafkaConsumer(brokers, groupID)
-			q.mu.Unlock()
+		default:
+			// Poll for messages with a timeout
+			ev := q.consumer.Poll(100)
 
-			for _, sub := range q.subcribers {
-				go q.consume(sub)
+			// no new message in kafka
+			if ev == nil {
+				continue
+			}
+
+			switch e := ev.(type) {
+			case *kafkaconfluent.Message:
+				// Push message to worker pool for processing
+				q.workerPool.PushMessage(e)
+			case kafkaconfluent.Error:
+				fmt.Printf("Consumer error: %v\n", e)
+
+				if e.Code() == kafkaconfluent.ErrAllBrokersDown {
+					time.Sleep(5 * time.Second)
+				}
 			}
 		}
 	}
 }
 
-func (q *queue) consume(sub *pkg.SubscriptionInfo) {
-	for {
-		select {
-		case <-q.ctx.Done():
-			return
-		default:
-			msg, err := q.consumer.ReadMessage()
+// processMessage processes a message received from Kafka
+// check topic belong to the handlers and process that with handler
+func (q *queue) processMessage(message interface{}) error {
+	msg, ok := message.(*kafkaconfluent.Message)
+
+	if !ok {
+		return fmt.Errorf("invalid message type")
+	}
+
+	topic := *msg.TopicPartition.Topic
+
+	// create a context with timeout for message processing
+	ctx, cancel := context.WithTimeout(q.ctx, time.Second*30)
+	defer cancel()
+
+	// extract span
+	var span pkg.Span
+
+	if q.tracer != nil {
+		// Create a carrier from Kafka headers
+		carrier := NewKafkaHeadersCarrier(msg.Headers)
+
+		// Extract span context from carrier
+		extractedSpan := q.tracer.Extract(ctx, carrier)
+
+		// Start a span from extracted context
+		ctx, span = q.tracer.StartFromSpan(ctx, extractedSpan, q.serviceName)
+		defer span.End()
+
+		// Record topic as an attribute
+		span.SetAttributes("kafka.topic", topic)
+	}
+
+	// find handlers for this topic
+	q.mu.RLock()
+	handlers := q.subscribers[topic]
+	q.mu.RUnlock()
+
+	if len(handlers) == 0 {
+		// No handlers for this topic, commit message and return
+		_, err := q.consumer.CommitMessage(msg)
+		return err
+	}
+
+	// Process message with all registered handlers
+	var lastErr error
+
+	for _, handler := range handlers {
+		if err := handler.Callback(ctx, span, msg); err != nil {
+			lastErr = err
+
+			// Record error in span
+			if span != nil {
+				span.RecordError(err)
+			}
+
+			// Log the error but continue processing with other handlers
+			fmt.Printf("Error processing message for topic %s: %v\n", topic, err)
 		}
 	}
+
+	// Commit the message offset
+	_, err := q.consumer.CommitMessage(msg)
+
+	if err != nil {
+		if span != nil {
+			span.RecordError(err)
+		}
+		return fmt.Errorf("failed to commit message: %w", err)
+	}
+
+	return lastErr
 }
 
-type messageQueue struct {
-	body []byte
+// KafkaHeadersCarrier implements TextMapCarrier for Kafka headers
+type KafkaHeadersCarrier struct {
+	headers []kafkaconfluent.Header
 }
 
-// Body implements pkg.MessageQueue.
-func (m *messageQueue) Body() []byte {
-	return m.body
+func NewKafkaHeadersCarrier(headers []kafkaconfluent.Header) *KafkaHeadersCarrier {
+	return &KafkaHeadersCarrier{headers: headers}
 }
 
-func newMessageQueue() pkg.MessageQueue {
-	return &messageQueue{}
+func (c *KafkaHeadersCarrier) Get(key string) string {
+	for _, h := range c.headers {
+		if h.Key == key {
+			return string(h.Value)
+		}
+	}
+	return ""
+}
+
+func (c *KafkaHeadersCarrier) Set(key string, value string) {
+	for i, h := range c.headers {
+		if h.Key == key {
+			c.headers[i].Value = []byte(value)
+			return
+		}
+	}
+	c.headers = append(c.headers, kafkaconfluent.Header{
+		Key:   key,
+		Value: []byte(value),
+	})
+}
+
+func (c *KafkaHeadersCarrier) Keys() []string {
+	keys := make([]string, len(c.headers))
+	for i, h := range c.headers {
+		keys[i] = h.Key
+	}
+	return keys
 }

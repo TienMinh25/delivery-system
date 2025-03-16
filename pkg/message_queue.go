@@ -17,15 +17,12 @@ type Subscriber interface {
 
 type Publisher interface {
 	// Publishes a message to a specified topic, returning an error if the operation fails.
-	Publish(ctx context.Context, topic string, request []byte) error
+	Produce(ctx context.Context, topic string, request []byte) error
 }
+
+type HandlerFunc func(ctx context.Context, span Span, message interface{}) error
 
 type SubscriptionInfo struct {
 	Topic    string
-	GroupID  string // Consumer group
-	Callback func(context.Context, Span, MessageQueue) error
-}
-
-type MessageQueue interface {
-	Body() []byte
+	Callback HandlerFunc
 }
