@@ -1,31 +1,45 @@
 import {
   Box,
   Container,
+  Divider,
+  Heading,
+  HStack,
+  Icon,
+  IconButton,
+  Image,
+  Input,
+  Link,
   SimpleGrid,
   Stack,
   Text,
-  Heading,
-  Input,
-  InputGroup,
-  InputRightElement,
-  Button,
-  Divider,
-  HStack,
-  Icon,
-  Link,
-  Image,
 } from '@chakra-ui/react';
 import {
-  FaFacebook,
-  FaTwitter,
-  FaInstagram,
-  FaYoutube,
-  FaPaperPlane,
-  FaMapMarkerAlt,
-  FaPhone,
   FaEnvelope,
+  FaFacebook,
+  FaInstagram,
+  FaMapMarkerAlt,
+  FaPaperPlane,
+  FaPhone,
+  FaTwitter,
+  FaYoutube,
 } from 'react-icons/fa';
 import Logo from '../ui/Logo';
+import visaLogo from './../../assets/images/visa.svg';
+import mastercardLogo from './../../assets/images/mastercard.svg';
+import paypalLogo from './../../assets/images/paypal.png';
+import momoLogo from './../../assets/images/momo.webp';
+import jcbLogo from './../../assets/images/jcb.jpeg';
+import shopeePayLogo from './../../assets/images/shopeepay.png';
+import PaymentLogosCarousel from '../ui/PaymentLogosCarousel';
+
+const paymentLogos = [
+  { src: visaLogo, alt: 'Visa' },
+  { src: mastercardLogo, alt: 'Mastercard' },
+  { src: paypalLogo, alt: 'Paypal' },
+  { src: momoLogo, alt: 'Momo' },
+  { src: jcbLogo, alt: 'JCB' },
+  { src: shopeePayLogo, alt: 'Shopee Pay' },
+];
 
 const Footer = () => {
   return (
@@ -40,14 +54,12 @@ const Footer = () => {
               <Logo size='lg' />
             </Box>
             <Text fontSize={'sm'}>
-              © 2025 ShopEasy. Tất cả các quyền đã được bảo lưu.
+              © 2025 Minh Plaza. Tất cả các quyền đã được bảo lưu.
             </Text>
             <Stack spacing={3}>
               <HStack>
                 <Icon as={FaMapMarkerAlt} color='gray.600' />
-                <Text fontSize='sm'>
-                  123 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh
-                </Text>
+                <Text fontSize='sm'>123 Cầu Giấy, Quận Cầu Giấy, Hà Nội</Text>
               </HStack>
               <HStack>
                 <Icon as={FaPhone} color='gray.600' />
@@ -55,7 +67,7 @@ const Footer = () => {
               </HStack>
               <HStack>
                 <Icon as={FaEnvelope} color='gray.600' />
-                <Text fontSize='sm'>contact@shopeasy.vn</Text>
+                <Text fontSize='sm'>contact@minhplaza.vn</Text>
               </HStack>
             </Stack>
             <HStack spacing={6}>
@@ -108,61 +120,44 @@ const Footer = () => {
             <Heading as='h5' size='sm' mb={2}>
               Đăng ký nhận tin
             </Heading>
-            <Text fontSize={'sm'}>
+            <Text fontSize={'sm'} mb={2}>
               Nhận thông tin về sản phẩm mới và khuyến mãi hấp dẫn
             </Text>
-            <InputGroup size='md'>
-              <Input type={'email'} placeholder={'Email của bạn'} bg='white' />
-              <InputRightElement width={'4.5rem'}>
-                <Button h={'1.75rem'} size={'sm'} colorScheme='brand' mr={1}>
-                  <Icon as={FaPaperPlane} />
-                </Button>
-              </InputRightElement>
-            </InputGroup>
+            <Stack
+              w='100%'
+              direction={{ base: 'column', sm: 'row' }}
+              spacing={2}
+            >
+              <Input
+                type={'email'}
+                placeholder={'Email của bạn'}
+                bg='white'
+                pr='1rem'
+              />
+              <IconButton
+                colorScheme='brand'
+                icon={<Icon as={FaPaperPlane} />}
+                minW={{ base: '50%', sm: 'auto' }}
+                aria-label='Gửi email'
+                px={3}
+              />
+            </Stack>
           </Stack>
         </SimpleGrid>
-
         <Divider my={6} borderColor='gray.300' />
 
-        <Box pt={6}>
-          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
-            <Image
-              src='https://via.placeholder.com/80x30?text=VISA'
-              alt='Visa'
-              height='30px'
-              objectFit='contain'
-            />
-            <Image
-              src='https://via.placeholder.com/80x30?text=MASTERCARD'
-              alt='Mastercard'
-              height='30px'
-              objectFit='contain'
-            />
-            <Image
-              src='https://via.placeholder.com/80x30?text=PAYPAL'
-              alt='PayPal'
-              height='30px'
-              objectFit='contain'
-            />
-            <Image
-              src='https://via.placeholder.com/80x30?text=MOMO'
-              alt='MoMo'
-              height='30px'
-              objectFit='contain'
-            />
-          </SimpleGrid>
-        </Box>
+        {/* Logo accept payment */}
+        <PaymentLogosCarousel logos={paymentLogos} />
 
         <Box pt={6} textAlign='center'>
           <Text fontSize='sm'>
-            ShopEasy - Nền tảng mua sắm trực tuyến hàng đầu Việt Nam
+            Minh Plaza - Nền tảng mua sắm trực tuyến hàng đầu Việt Nam
           </Text>
           <Text fontSize='xs' mt={2} color='gray.500'>
             Giấy chứng nhận Đăng ký Kinh doanh số 0123456789 do Sở Kế hoạch và
-            Đầu tư TP. Hồ Chí Minh cấp ngày 01/01/2025
+            Đầu tư Thành phố Hà Nội cấp ngày 01/01/2025
           </Text>
         </Box>
-
         <Box pt={4} textAlign='center'>
           <SimpleGrid
             columns={{ base: 2, md: 3 }}

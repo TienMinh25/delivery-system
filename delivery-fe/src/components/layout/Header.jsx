@@ -25,7 +25,7 @@ import {
   Text,
   useBreakpointValue,
   useDisclosure,
-  VStack
+  VStack,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { FaBell, FaHeart, FaShoppingCart } from 'react-icons/fa';
